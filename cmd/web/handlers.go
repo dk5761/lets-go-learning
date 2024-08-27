@@ -3,47 +3,38 @@ package main
 import (
 	"errors"
 	"fmt"
-	"html/template" // New import
 	"net/http"
 	"strconv"
 
-	"lets.go/internals/models"
+	"lets.go/internal/models"
 )
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
-		http.NotFound(w, r)
+		app.notFound(w)
 		return
 	}
-
-	files := []string{
-		"./ui/html/base.html",
-		"./ui/html/pages/home.html",
-		"./ui/html/partials/nav.html",
-	}
-
-	ts, err := template.ParseFiles(files...)
+	snippets, err := app.snippets.Latest()
 	if err != nil {
 		app.serverError(w, err)
-
 		return
 	}
+	// Call the newTemplateData() helper to get a templateData struct
 
-	err = ts.ExecuteTemplate(w, "base", nil)
-	if err != nil {
-		app.serverError(w, err)
+	// the 'default' data (which for now is just the current year), and add
 
-	}
-
+	// snippets slice to it.
+	data := app.newTemplateData(r)
+	data.Snippets = snippets
+	// Pass the data to the render() helper as normal.
+	app.render(w, http.StatusOK, "home.html", data)
 }
-
 func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.Atoi(r.URL.Query().Get("id"))
 	if err != nil || id < 1 {
 		app.notFound(w)
 		return
 	}
-
 	snippet, err := app.snippets.Get(id)
 	if err != nil {
 		if errors.Is(err, models.ErrNoRecord) {
@@ -53,9 +44,10 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-
-	fmt.Fprintf(w, "%+v", snippet)
-
+	// And do the same thing again here...
+	data := app.newTemplateData(r)
+	data.Snippet = snippet
+	app.render(w, http.StatusOK, "view.html", data)
 }
 
 func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
